@@ -1,9 +1,66 @@
 # CScript
 
-A single-file scripting engine written in C that runs C designed with convenience, flexibility and minimal boilerplate in mind.
+A single-file scripting engine written in C that runs cimple, a minimalist C-like language.
+
+Designed with convenience, flexibility and minimal boilerplate in mind.
 
 > [!WARNING]
 > This engine only supports x86_64 architectures with either System V or WinABI interfaces.
+
+## C vs cimple
+
+One thing that's different is mainly the type system. This project started as a C scripting language similar to [picoC](https://github.com/jpoirier/picoc), but it quickly became something different because of how abysmal the C type system is to parse.
+
+The overall syntax of the language is the same, although several modifiers aren't recognized. Those include:
+
+- `inline`
+- `volatile`
+- `register`
+- `restrict`
+- `_Atomic`
+- `typedef`
+
+Keywords like `goto`, `typeof` and `_Generic` are also not recognized.
+
+You might be thinking: "How can I break multiple loops without `goto`?" Well, `break` now takes a numeric argument indicating how many layers of loops to break:
+```c
+while (true) {
+    while (true) {
+        break 2; // from here
+    }
+}
+// to here
+```
+
+The C preprocessor is also absent, because there's no need. Instead of `#include`, you can use `include "file.cmpl";`
+
+### Type system
+
+The base types are clear and simple. Instead of `char`, `short`, `int`, `long`, `signed`, `unsigned`, `float` or `double`, you instead have these:
+
+- `s8` - signed 8-bit integer
+- `s16` - signed 16-bit integer
+- `s32` - signed 32-bit integer
+- `s64` - signed 64-bit integer
+- `u8` - unsigned 8-bit integer
+- `u16` - unsigned 16-bit integer
+- `u32` - unsigned 32-bit integer
+- `u64` - unsigned 64-bit integer
+- `f32` - 32-bit floating point
+- `f64` - 64-bit floating point
+- `bool` - same as `s8`
+
+`const` has to be strictly at the left side of the type, or after a pointer: `const s32* const`. `s32 const` isn't valid.
+
+Arrays are after the *type* not the *identifier*. Instead of writing this: `s32 array[5]` you write `s32[5] array`. This makes declaring pointers to arrays easier, as instead of `s32 (*array)[5]` you can write `s32[5]* array`. Similarly, this applies to functions as well. The argument list is placed between the return type and the identifier, like this: `void(s32 a, s32 b)* function`.
+
+Because of this, function definitions look a bit weird:
+```c
+s32(s32 x) fact {
+    if (x <= 1) return x;
+    return x * fact(x - 1);
+}
+```
 
 ## Usage
 
@@ -31,7 +88,7 @@ A simple variable read looks like this:
 
 ```c
 // script code:
-// int value = 5;
+// s32 value = 5;
 
 int number;
 cscript_get(context, "value", &number);
@@ -40,7 +97,7 @@ printf("%d\n", number); // 5
 This also works with pointers, arrays, or structs.
 ```c
 // script code:
-// int array[5] = { 1, 2, 3, 4, 5 };
+// s32[5] array = { 1, 2, 3, 4, 5 };
 // struct {
 //     float a;
 //     int b;
@@ -61,7 +118,7 @@ In order to call script functions, you just get the function and run it.
 > Calling a script returned function after destroying the context results in UB.
 ```c
 // script code:
-// int fact(int x) {
+// s32(s32 x) fact {
 //     if (x <= 1) return x;
 //     return x * fact(x - 1);
 // }
@@ -81,7 +138,7 @@ A simple variable modification looks like this:
 ```c
 int value;
 
-cscript_exec(context, "int value = 5;");
+cscript_exec(context, "s32 value = 5;");
 
 cscript_get(context, "value", &value);
 printf("%d\n", value); // 5
@@ -97,8 +154,8 @@ C rules still apply, so you can't modify a constant, an array or a function.
 Calling native functions within the script also works seamlessly:
 ```c
 // script code:
-// int(*fact)(int x);
-// int result;
+// extern s32(s32 x)* fact;
+// s32 result;
 
 int fact(int x) {
     if (x <= 1) return x;
@@ -116,8 +173,8 @@ printf("%d\n", &result); // 24
 
 Scripts will see all symbols that are visible to the linker. This means you can call any function that isn't marked as `static` or included in a linked library. This doesn't apply to just functions, global non-static variables are also visible.
 ```c
-int some_value = 5;
-int some_function(int a, int b) {
+s32 some_value = 5;
+s32(s32 a, s32 b) some_function {
     return a + b;
 }
 
