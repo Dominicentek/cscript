@@ -48,7 +48,7 @@ The base types are clear and simple. Instead of `char`, `short`, `int`, `long`, 
 - `u64` - unsigned 64-bit integer
 - `f32` - 32-bit floating point
 - `f64` - 64-bit floating point
-- `bool` - same as `s8`
+- `bool` - same as `u8`
 
 `const` has to be strictly at the left side of the type, or after a pointer: `const s32* const`. `s32 const` isn't valid.
 
@@ -60,6 +60,26 @@ s32(s32 x) fact {
     if (x <= 1) return x;
     return x * fact(x - 1);
 }
+```
+
+### `alloc` keyword
+
+cimple has a new keyword: `alloc`. Because cimple requires integer literals in array declarations, you can use `alloc` instead.
+
+It will allocate memory initialized to all 0, similar to `calloc` in stdlib, but will automatically get free'd once out of scope
+```c
+s32 size = 5;
+s32* dynamic_array = alloc size * sizeof(s32);
+```
+
+But remember, **the memory gets free'd once out of scope**, so something like this is effectively use after free:
+```c
+s32* ptr;
+{
+    ptr = alloc sizeof(s32);
+    // ...
+} // scope destroyed, ptr gets free'd here
+*ptr = 0;
 ```
 
 ## Usage
@@ -154,7 +174,7 @@ C rules still apply, so you can't modify a constant, an array or a function.
 Calling native functions within the script also works seamlessly:
 ```c
 // script code:
-// extern s32(s32 x)* fact;
+// s32(s32 x)* fact;
 // s32 result;
 
 int fact(int x) {
@@ -172,13 +192,20 @@ printf("%d\n", &result); // 24
 ## Symbol visibility
 
 Scripts will see all symbols that are visible to the linker. This means you can call any function that isn't marked as `static` or included in a linked library. This doesn't apply to just functions, global non-static variables are also visible.
+
+These variables have to be defined in the script with the `extern` keyword.
 ```c
-s32 some_value = 5;
-s32(s32 a, s32 b) some_function {
+int some_value = 5;
+int some_function(int a, int b) {
     return a + b;
 }
 
-const char* script = "some_value = some_function(1, 2);";
+const char* script = "\
+extern s32 some_value;\n\
+extern s32(s32 x) some_function;\n\
+\n\
+some_value = some_function(1, 2);\n\
+";
 cscript_exec(context, script);
 printf("%d\n", some_value); // 3
 ```
